@@ -1,22 +1,36 @@
 import os
 from dotenv import load_dotenv
 import psycopg2
-from typing import Optional
+from typing import Optional, List
 from langchain.tools import tool
-from pydantic import BaseModel, Field   
+from pydantic import BaseModel, Field  
+
 
 load_dotenv()
 
 
-def get_conn():
-    return psycopg2.connect(
-    host = os.getenv("host"),
-    database =os.getenv("database"),    
-    user = os.getenv("user"),
-    password = os.getenv("password"),
-    port = os.getenv("port")
-)
-
+### CLASSES ###
+class UpdateTransactionArgs(BaseModel):
+    id: Optional[int] = Field(
+        default=None,
+        description="ID da transação a atualizar. Se ausente, será feita uma busca por (match_text + date_local)."
+    )
+    match_text: Optional[str] = Field(
+        default=None,
+        description="Texto para localizar transação quando id não for informado (busca em source_text/description)."
+    )
+    date_local: Optional[str] = Field(
+        default=None,
+        description="Data local (YYYY-MM-DD) em America/Sao_Paulo; usado em conjunto com match_text quando id ausente."
+    )
+    amount: Optional[float] = Field(default=None, description="Novo valor.")
+    type_id: Optional[int] = Field(default=None, description="Novo type_id (1/2/3).")
+    type_name: Optional[str] = Field(default=None, description="Novo type_name: INCOME | EXPENSES | TRANSFER.")
+    category_id: Optional[int] = Field(default=None, description="Nova categoria (id).")
+    category_name: Optional[str] = Field(default=None, description="Nova categoria (nome).")
+    description: Optional[str] = Field(default=None, description="Nova descrição.")
+    payment_method: Optional[str] = Field(default=None, description="Novo meio de pagamento.")
+    occurred_at: Optional[str] = Field(default=None, description="Novo timestamp ISO 8601.")
 class AddTransactionArgs(BaseModel):
     amount: float = Field(..., description="Valor da transação (use positivo).")
     source_text: str = Field(..., description="Texto original do usuário.")
@@ -30,6 +44,7 @@ class AddTransactionArgs(BaseModel):
     description: Optional[str] = Field(default=None, description="Descrição (opcional).")
     payment_method: Optional[str] = Field(default=None, description="Forma de pagamento (opcional).")
     category_name: Optional[str] = Field(default=None, description="Nome da categoria (Alimentação).")
+
 class QueryTransactionsArgs(BaseModel):
     text: Optional[str] = Field(default=None, description="Filtro por texto (source_text/description).")
     type_name: Optional[str] = Field(default=None, description="Nome do tipo da transação (INCOME | EXPENSES | TRANSFER).")
@@ -45,6 +60,15 @@ TYPE_ALIASES = {
     "EXPENSE":"EXPENSES", "EXPENSES":"EXPENSES", "SAÍDA":"EXPENSES", "DESPESA":"EXPENSES",
     "TRANSFER":"TRANSFER", "TRANSFERÊNCIA":"TRANSFER"
 }
+
+def get_conn():
+    return psycopg2.connect(
+    host = os.getenv("host"),
+    database =os.getenv("database"),    
+    user = os.getenv("user"),
+    password = os.getenv("password"),
+    port = os.getenv("port")
+)
 
 def _get_category_id(cur, category_id: Optional[int], category_name: Optional[str]) -> Optional[int]:
     if category_id:
@@ -281,27 +305,6 @@ def daily_balance(date_local: str) -> dict:
         except Exception:
             pass
 
-class UpdateTransactionArgs(BaseModel):
-    id: Optional[int] = Field(
-        default=None,
-        description="ID da transação a atualizar. Se ausente, será feita uma busca por (match_text + date_local)."
-    )
-    match_text: Optional[str] = Field(
-        default=None,
-        description="Texto para localizar transação quando id não for informado (busca em source_text/description)."
-    )
-    date_local: Optional[str] = Field(
-        default=None,
-        description="Data local (YYYY-MM-DD) em America/Sao_Paulo; usado em conjunto com match_text quando id ausente."
-    )
-    amount: Optional[float] = Field(default=None, description="Novo valor.")
-    type_id: Optional[int] = Field(default=None, description="Novo type_id (1/2/3).")
-    type_name: Optional[str] = Field(default=None, description="Novo type_name: INCOME | EXPENSES | TRANSFER.")
-    category_id: Optional[int] = Field(default=None, description="Nova categoria (id).")
-    category_name: Optional[str] = Field(default=None, description="Nova categoria (nome).")
-    description: Optional[str] = Field(default=None, description="Nova descrição.")
-    payment_method: Optional[str] = Field(default=None, description="Novo meio de pagamento.")
-    occurred_at: Optional[str] = Field(default=None, description="Novo timestamp ISO 8601.")
 
 @tool("update_transaction", args_schema=UpdateTransactionArgs)
 def update_transaction(
